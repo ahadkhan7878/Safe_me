@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🔐 Safe Me - Password Vault</title>
+  <link id="app-icon" rel="icon" href="icon1.png" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f3f3;
+      padding: 20px;
+    }
+    h2, h3 {
+      text-align: center;
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      font-size: 16px;
+    }
+    .entry {
+      background: #fff;
+      padding: 10px;
+      margin-top: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      position: relative;
+    }
+    .btn-small {
+      font-size: 14px;
+      padding: 5px 10px;
+      margin: 5px 5px 0 0;
+      cursor: pointer;
+    }
+    #lock-screen {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: #ffffffee;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+    }
+    #lock-screen input {
+      width: 80%;
+      margin-bottom: 10px;
+    }
+    #change-password, #icon-change {
+      margin-top: 30px;
+      background: #fff;
+      padding: 15px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="lock-screen">
+    <h2>🔐 Enter Master Password</h2>
+    <input type="password" id="masterInput" placeholder="Enter master password" />
+    <button onclick="unlock()">Unlock</button>
+    <p id="error" style="color:red;"></p>
+  </div>
+
+  <h2>🔒 Safe Me - Password Vault</h2>
+
+  <input type="text" id="site" placeholder="Enter site/app name" />
+  <input type="password" id="password" placeholder="Enter password" />
+  <button onclick="savePassword()">💾 Save Password</button>
+  <button onclick="clearFields()">🧹 Clear Fields</button>
+
+  <input type="text" id="search" placeholder="🔍 Search saved passwords..." oninput="showPasswords()" />
+
+  <h3>🔑 Saved Passwords:</h3>
+  <div id="password-list"></div>
+
+  <div id="change-password">
+    <h3>🔧 Change Master Password</h3>
+    <input type="password" id="oldMaster" placeholder="Old Master Password" />
+    <input type="password" id="newMaster" placeholder="New Master Password" />
+    <button onclick="changeMasterPassword()">🔁 Change Password</button>
+    <p id="changeMsg"></p>
+  </div>
+
+  <div id="icon-change">
+    <h3>🎨 Change App Icon</h3>
+    <select id="iconSelect" onchange="changeIcon()">
+      <option value="icon1.png">🔐 Classic</option>
+      <option value="icon2.png">🛡️ Shield</option>
+      <option value="icon3.png">🔒 Lock</option>
+    </select>
+  </div>
+
+  <script>
+    // Initial setup
+    if (!localStorage.getItem("masterPassword")) {
+      localStorage.setItem("masterPassword", "121244");
+    }
+    if (!localStorage.getItem("iconHref")) {
+      localStorage.setItem("iconHref", "icon1.png");
+    } else {
+      document.getElementById("app-icon").href = localStorage.getItem("iconHref");
+    }
+
+    let attemptCount = 0;
+    let lockTimeout = null;
+
+    function unlock() {
+      const input = document.getElementById("masterInput").value;
+      const correct = localStorage.getItem("masterPassword");
+      const errorMsg = document.getElementById("error");
+
+      if (lockTimeout) return;
+
+      if (input === correct) {
+        document.getElementById("lock-screen").style.display = "none";
+        showPasswords();
+        attemptCount = 0;
+        errorMsg.textContent = "";
+      } else {
+        attemptCount++;
+        errorMsg.textContent = `Incorrect master password! Attempt ${attemptCount}/3`;
+
+        if (attemptCount >= 3) {
+          errorMsg.textContent += ". Locked for 10 seconds.";
+          lockTimeout = setTimeout(() => {
+            attemptCount = 0;
+            lockTimeout = null;
+            errorMsg.textContent = "";
+          }, 10000);
+        }
+      }
+    }
+
+    function clearFields() {
+      document.getElementById("site").value = "";
+      document.getElementById("password").value = "";
+    }
+
+    function savePassword() {
+      const site = document.getElementById("site").value.trim();
+      const pass = document.getElementById("password").value.trim();
+      const timestamp = new Date().toLocaleString();
+
+      if (!site || !pass) {
+        alert("Please fill both fields.");
+        return;
+      }
+
+      const saved = JSON.parse(localStorage.getItem("passwords")) || [];
+      saved.push({ site, pass, timestamp });
+      localStorage.setItem("passwords", JSON.stringify(saved));
+
+      clearFields();
+      showPasswords();
+    }
+
+    function showPasswords() {
+      const search = document.getElementById("search").value.toLowerCase();
+      const saved = JSON.parse(localStorage.getItem("passwords")) || [];
+      const container = document.getElementById("password-list");
+      container.innerHTML = "";
+
+      saved.forEach((entry, index) => {
+        if (entry.site.toLowerCase().includes(search)) {
+          const div = document.createElement("div");
+          div.className = "entry";
+          div.innerHTML = `
+            <strong>${entry.site}</strong>
+            🔑 <span id="pass-${index}">${entry.pass}</span><br/>
+            🕒 <small>Added: ${entry.timestamp}</small><br/>
+            <button class="btn-small" onclick="copyPassword(${index})">📋 Copy</button>
+            <button class="btn-small" onclick="deleteEntry(${index})">🗑 Delete</button>
+          `;
+          container.appendChild(div);
+        }
+      });
+    }
+
+    function copyPassword(index) {
+      const text = document.getElementById(`pass-${index}`).textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Password copied!");
+      });
+    }
+
+    function deleteEntry(index) {
+      let saved = JSON.parse(localStorage.getItem("passwords")) || [];
+      saved.splice(index, 1);
+      localStorage.setItem("passwords", JSON.stringify(saved));
+      showPasswords();
+    }
+
+    function changeMasterPassword() {
+      const oldPass = document.getElementById("oldMaster").value;
+      const newPass = document.getElementById("newMaster").value;
+      const current = localStorage.getItem("masterPassword");
+      const msg = document.getElementById("changeMsg");
+
+      if (oldPass === current) {
+        if (newPass.length >= 4) {
+          localStorage.setItem("masterPassword", newPass);
+          msg.style.color = "green";
+          msg.textContent = "Master password updated!";
+        } else {
+          msg.style.color = "red";
+          msg.textContent = "New password too short!";
+        }
+      } else {
+        msg.style.color = "red";
+        msg.textContent = "Old password incorrect!";
+      }
+
+      document.getElementById("oldMaster").value = "";
+      document.getElementById("newMaster").value = "";
+    }
+
+    function changeIcon() {
+      const icon = document.getElementById("iconSelect").value;
+      document.getElementById("app-icon").href = icon;
+      localStorage.setItem("iconHref", icon);
+    }
+  </script>
+</body>
+</html>
